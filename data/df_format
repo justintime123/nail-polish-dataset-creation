@@ -1,0 +1,9 @@
+Standardized data format:
+
+Brand: Nail polish brand (OPI, Morgan Taylor or Sally Hansen)
+Color: Primary color (not undertones)
+Product Name: Name of the polish
+Finish: Creme, metallic, glitter, shimmer, pearl, etc. Covers any effects (like jelly).
+Product Type: Nail Lacquer, Vegan
+Link: link to product page
+Description: More detailed description of color (e.g., light blue)
