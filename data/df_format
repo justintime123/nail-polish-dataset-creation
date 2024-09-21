@@ -7,4 +7,5 @@ Color family: Primary color (not undertones)
 Color shade: More detailed description of color (e.g., light blue)
 Primary finish: Creme, metallic, glitter, shimmer, pearl, etc. Covers any effects (like jelly).
 Secondary finish: Extra finish, if there's another on top
+Original description: Optional field to show where color_shade, primary_finish and secondary_finish were derived from
 Link: link to product page
