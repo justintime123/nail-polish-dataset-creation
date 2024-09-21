@@ -27,7 +27,7 @@ I formatted data into the following format:
 
 
 ## Technologies and Libraries
-- Python: Selenium, Pandas 
+- Python: Selenium, BeautifulSoup, Pandas 
 
 
 ## Code structure (TODO: add diagram to show flow)
