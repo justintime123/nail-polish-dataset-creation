@@ -94,6 +94,8 @@ def get_df():
     #This could be good for data validation later on
     df = final_format(df)
 
+    #TODO: fill in missing data
+
     return df
 
 

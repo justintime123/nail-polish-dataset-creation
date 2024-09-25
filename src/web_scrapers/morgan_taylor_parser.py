@@ -41,6 +41,7 @@ def get_each_vegan_polish_link(driver):
     #Collect links to each product
     html_doc = driver.page_source
     soup = BeautifulSoup(html_doc, 'html.parser')
+    #TODO: click thru each product on https://gelish.com/morgan-taylor/naturals to get descriptions and finishes
 
 
 def dismiss_cookies_window(driver):
