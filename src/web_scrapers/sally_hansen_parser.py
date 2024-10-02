@@ -7,17 +7,35 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 import re
 
-def get_colors_by_product_name():
-    return None
+def get_polish_names_from_page(driver):
+    html_doc = driver.page_source
+    soup = BeautifulSoup(html_doc, 'html.parser')
+    polish_names = [heading.text for heading in soup.find_all('h5', class_='heading cardo__heading')]
+    return polish_names
 
-def get_finishes_by_product_name():
-    return None
+def click_view_more_buttons(driver):
+    # Click on 'View More' button in each section if it's available
+    # https://stackoverflow.com/questions/46449200/xpath-for-a-span-based-on-its-text
+    # view_more_buttons = [span.parent for span in soup.find_all('span', string='View More')]
+
+    # https://stackoverflow.com/questions/46449200/xpath-for-a-span-based-on-its-text
+    # span is within buttons
+    # // means descendents or self
+    view_more_btns = driver.find_elements(By.XPATH, '//span[contains(text(),"View More")]')
+    if view_more_btns:
+        for btn in view_more_btns:
+            driver.implicitly_wait(randint(5, 10))
+            ActionChains(driver).move_to_element(btn).click().perform()
+    return
 
 def get_product_names_by_line(driver):
     html_doc = driver.page_source
@@ -28,11 +46,11 @@ def get_product_names_by_line(driver):
     # Collection description: h5 element, 'heading filter-product-banner__description'
     # Product link: link with data-test='cardo-element-link', get href
     # Product name: h5, class="heading cardo__heading"
-    # Click on 'View More' button in each section if it's available
+
+    #Before parsing, click on all 'View More' buttons to expand produce sections
+    click_view_more_buttons(driver)
 
     product_names_and_links_by_line = []
-    #TODO: click thru "View More" buttons in each section before parsing products
-
     product_line_sections = soup.find_all('div', class_='variant-filter-results')
     for product_line in product_line_sections:
         collection_name = product_line.find_all('h3', class_='heading filter-product-banner__title')[0].text
@@ -63,7 +81,7 @@ def get_checkbox_ids_by_filter_category(driver):
     #Each checkbox id starts with 'filter-option-' and ends with '-{value}'
     #Get filter categories and all possible values. This can be used to reconstruct the id later on
     #https://stackoverflow.com/questions/6903557/splitting-on-first-occurrence
-    product_names_by_line = get_product_names_by_line(driver)
+    #product_names_by_line = get_product_names_by_line(driver)
     filter_categories_and_values = [s.replace('filter-option-', '').split('-', 1) for s in checkbox_ids]
     filter_values_by_category = {}
     for l in filter_categories_and_values:
@@ -75,42 +93,92 @@ def get_checkbox_ids_by_filter_category(driver):
             filter_values_by_category[filter_name] = filter_values
     return filter_values_by_category
 
+def dismiss_cookies_window(driver):
+    WebDriverWait(driver, randint(5, 10)).until(
+        EC.element_to_be_clickable((By.ID, 'onetrust-reject-all-handler'))).click()
+
+
 if __name__ == '__main__':
-    # url_to_scrape = 'https://gelish.com/colors/morgan-taylor'
-    # driver.get(url_to_scrape)
 
     try:
+        #Set-up driver
         driver = webdriver.Chrome()
         url_to_scrape = 'https://www.sallyhansen.com/en-us/nail-color'
         driver.get(url_to_scrape)
+
         #Dismiss cookies window
-        WebDriverWait(driver, randint(5, 10)).until(
-            EC.element_to_be_clickable((By.ID, 'onetrust-reject-all-handler'))).click()
-        time.sleep(randint(1, 5))
+        dismiss_cookies_window(driver)
 
-        products_by_product_line = get_product_names_by_line(driver)
-
+        #Get checkbox filters
         checkbox_filters = get_checkbox_ids_by_filter_category(driver)
-        for filter_category in checkbox_filters:
-            for value in filter_category:
+
+        #Filter subset of checkbox filters
+        #I changed the order of filters_to_keep to fix stale element issue:
+        # https://stackoverflow.com/questions/27003423/staleelementreferenceexception-on-python-selenium
+        # Previously, the browser would go back to 'https://www.sallyhansen.com/en-us/' after Wine/Burgundy/Berry checkbox was clicked
+        #Research:
+            #  https://stackoverflow.com/questions/18778320/how-can-i-find-the-code-thats-refreshing-the-page
+            # Things in JS that may cause page to refresh:
+            # (1) timers: setTimeout(), setInterval()
+            # (2) broken selectors: may have clicked event handlers attached to whole document or Divs
+            # (3) code that can redirect browser to different url
+        # From Google: check out session management, redirect codes in html responses, user-agent detection, rate-limiting
+
+        # I ended up making the request more random by changing the order of filters_to_keep.
+        # Another idea was to split up this large request into smaller requests, in case rate-limiting was the problem.
+        filters_to_keep = ['Product Line', 'Nail Color','Texture/Finish']
+        checkbox_filters_to_keep = {k: checkbox_filters[k] for k in filters_to_keep}
+
+        products_by_filter_group = {filter_group: {} for filter_group in filters_to_keep}
+
+        for filter_category in checkbox_filters_to_keep:
+            for value in checkbox_filters_to_keep[filter_category]:
+                driver.implicitly_wait(randint(1, 5))
                 checkbox_id = f"filter-option-{filter_category}-{value}"
                 #wait until element is clickable wasn't working
-                checkbox = driver.find_element('id', checkbox_id)
-                checkbox.click()
-                #get polish names and product line
+                ignored_exceptions = (NoSuchElementException, StaleElementReferenceException)
+                checkbox = driver.find_element(By.ID, checkbox_id)
+                #checkbox = WebDriverWait(driver,  randint(1, 5), ignored_exceptions=ignored_exceptions).until(EC.presence_of_element_located((By.ID,checkbox_id)))
+                #for each checkbox, click, collect and save polishes from page, and click again to reset filter
+
+                #Handling ElementClickInterceptedException(): element is not clickable at (x,y). Another element would receive the click
+                #This was bc element is not visible on the page. The previous steps land on the bottom of the website
+                #https://stackoverflow.com/questions/72460250/python-selenium-element-is-not-clickable-at-point-even-while-using-wait-until-el
+                #Before clicking, move to element on site
+                ActionChains(driver).move_to_element(checkbox).click().perform()
+                #Click on any View-More Buttons if they exist, to show hidden products
+                click_view_more_buttons(driver)
+                driver.implicitly_wait(randint(1, 3))
+                #get polish names
+                products_by_filter_group[filter_category][value] = get_polish_names_from_page(driver)
+                ActionChains(driver).move_to_element(checkbox).click().perform()
                 #unclick checkbox
+                driver.implicitly_wait(randint(1, 3))
+
+        driver.quit()
+
+
+        #save to file
+        output_dir = '../../data'
+        output_file_name = "sally_hansen_products_by_filter.json"
+        output_path = os.path.join(output_dir, output_file_name)
+        with open(output_path, 'w') as fp:
+            json.dump(products_by_filter_group, fp, indent=2)
+
+        #I decided to convert dict to row-oriented format, to match dataframe
+        #https://stackoverflow.com/questions/18837262/convert-python-dict-into-a-dataframe
 
         #Can get color_shades on ulta website
         #https://www.ulta.com/p/insta-dri-nail-polish-pimprod2042070?sku=2611172
 
         # open_filters_btn = WebDriverWait(driver, randint(5, 10)).until(
-        #     EC.element_to_be_clickable((By.XPATH, '//*[@id="app"]/div[2]/div[2]/div/div/div/div/div[1]/button')))
-        # open_filters_btn.click()
-        filter_checkbox = WebDriverWait(driver, randint(5, 10)).until(
-            EC.element_to_be_clickable((By.XPATH, '//*[@id="filter-option-Nail Color-Green"]')))
-        filter_checkbox.click()
+        # #     EC.element_to_be_clickable((By.XPATH, '//*[@id="app"]/div[2]/div[2]/div/div/div/div/div[1]/button')))
+        # # open_filters_btn.click()
+        # filter_checkbox = WebDriverWait(driver, randint(5, 10)).until(
+        #     EC.element_to_be_clickable((By.XPATH, '//*[@id="filter-option-Nail Color-Green"]')))
+        # filter_checkbox.click()
         #Collect all checkbox ids
-        checkbox_filters = get_checkbox_ids_by_filter_category(driver)
+       # checkbox_filters = get_checkbox_ids_by_filter_category(driver)
         #while there are available colors
         #Select checkbox, get all product names, and deselect checkbox
         #https://stackoverflow.com/questions/21213417/select-checkbox-using-selenium-with-python
