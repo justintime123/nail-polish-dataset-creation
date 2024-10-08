@@ -2,7 +2,10 @@ import json
 import time
 from random import randint
 import os
+import requests
+import webcolors
 
+from PIL import Image
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
@@ -10,6 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
+import numpy as np
 
 
 
@@ -41,8 +45,73 @@ def get_each_vegan_polish_link(driver):
     #Collect links to each product
     html_doc = driver.page_source
     soup = BeautifulSoup(html_doc, 'html.parser')
-    #TODO: click thru each product on https://gelish.com/morgan-taylor/naturals to get descriptions and finishes
+    list_of_products = soup.find_all('a', class_='information svelte-1cmn0v2')
+    product_links = [prod['href'] for prod in list_of_products]
+    return product_links
 
+def parse_vegan_polish_link(driver):
+    html_doc = driver.page_source
+    soup = BeautifulSoup(html_doc, 'html.parser')
+    #Note: find gets the first match, while find_all gets all matches (https://stackoverflow.com/questions/59780916/what-is-the-difference-between-find-and-find-all-in-beautiful-soup-python)
+    name = soup.find('h2', class_='svelte-mmqmxq')
+    #Description is in the first paragraph element
+    description = soup.find('div', class_='text product-description svelte-mmqmxq').find('p')
+    top_colors_by_percent = None
+
+    if name is not None:
+        name = name.text
+    if description is not None:
+        description = description.text
+
+    #save screenshot of image using pillow library. This will be used in data_transform to determine color_family
+    #the below image is a swatch picture of the color, which is easier to get color_family from than noisier picture of bottle
+    polish_img = soup.find_all('img', class_='contain svelte-9x92ar')[1]
+    img_src_url = polish_img['src']
+
+    #https://pillow.readthedocs.io/en/stable/reference/Image.html
+    #https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image
+    #https://www.tutorialspoint.com/how-to-open-an-image-from-the-url-in-pil
+    #Using requests library to send GET request for image url, and retrieve the raw Response object content
+    #stream=True prevents immediate memory storage
+    try:
+        #https://stackoverflow.com/questions/57539233/how-to-open-an-image-from-an-url-with-opencv-using-requests-from-python
+        response = requests.get(img_src_url, stream=True).raw
+        with Image.open(response) as img:
+            #https://stackoverflow.com/questions/59507676/how-to-get-the-dominant-colors-using-pillow
+            reduced = img.convert("P", palette=Image.WEB)
+            image_dimensions = img.size
+            total_pixels = image_dimensions[0] * image_dimensions[1]
+            palette = reduced.getpalette()
+            palette = [palette[3*n:3*n+3] for n in range(256)]
+            color_concentrations = [(n, palette[m]) for n,m in reduced.getcolors()]
+            #take top 3 color_concentrations
+            #convert to percent out of total pixels
+            #If a color makes up a large enough percent threshold, it will represent the primary color
+            #Ignoring black background [RGB value = (255,255,255)]
+            #TODO: improve process by cropping out background color
+            color_concentrations.sort(reverse=True)
+            colors_by_percent = [(num_of_color / total_pixels, rgb_value) for num_of_color, rgb_value in
+                                 color_concentrations]
+            #background color for each image is black [RGB value = (255,255,255)]
+            #Take top 5 color concentrations, ignoring black background. This assumes the top color is black and that the polish isn't black
+            top_colors_by_percent = colors_by_percent[0:5]
+            #https://stackoverflow.com/questions/9694165/convert-rgb-color-to-english-color-name-like-green-with-python
+        #https://www.quora.com/Can-we-accept-an-image-URL-as-input-in-Python
+        #img = np.asarray(bytearray(response.read()), dtype="uint8")
+        #rgb_image = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        #https://stackoverflow.com/questions/21596281/how-does-one-convert-a-grayscale-image-to-rgb-in-opencv-python
+        #https://docs.opencv.org/4.x/d3/df2/tutorial_py_basic_ops.html
+        #https://stackoverflow.com/questions/63081974/converting-rgb-to-hex
+        # #From OpenCV docs, for imdecode(), color images are stored in BGR order
+        # image = cv2.imdecode(img, cv2.IMREAD_COLOR)
+        # #cv2.imshow('image', image)
+        pass
+
+    except Exception as e:
+        print(e)
+        return '', '', ''
+
+    return name, description, top_colors_by_percent
 
 def dismiss_cookies_window(driver):
     # Dimiss cookies pop up
@@ -59,14 +128,13 @@ def dismiss_cookies_window(driver):
         return
 
 
-if __name__ == '__main__':
+def get_lacquer_products():
     # url_to_scrape = 'https://gelish.com/colors/morgan-taylor'
     # driver.get(url_to_scrape)
 
     try:
         driver = webdriver.Chrome()
         nail_lacquers = []
-        vegan_polishes = []
 
         base_url = 'https://gelish.com/colors/morgan-taylor'
         # hard-coding the colors for now, instead of using Selenium to scroll thru input element
@@ -103,7 +171,47 @@ if __name__ == '__main__':
         # #Otherwise keep going
         # move.click_and_hold(slider).move_by_offset(10, 0).release().perform()
         # time.sleep(15)
-        #driver.quit()
+        # driver.quit()
     except Exception as e:
         print(e)
         driver.quit()
+
+def get_vegan_polishes():
+
+    try:
+        driver = webdriver.Chrome()
+        url = 'https://gelish.com/morgan-taylor/naturals'
+        driver.get(url)
+        dismiss_cookies_window(driver)
+        #each link contains polish description
+        links = get_each_vegan_polish_link(driver)
+        polishes = []
+
+        base_url = 'https://gelish.com'
+        for link in links:
+            url_to_scrape = base_url + '/' + link
+            driver.implicitly_wait(randint(1, 3))
+            driver.get(url_to_scrape)
+            dismiss_cookies_window(driver)
+            name, description, top_colors_by_percent = parse_vegan_polish_link(driver)
+            polish = {'product_name': name, 'top_colors_by_percent': top_colors_by_percent, 'description': description, 'link': url_to_scrape}
+            polishes.append(polish)
+
+        driver.quit()
+
+        # output_dir = '../../data'
+        # output_file_name = "morgan_taylor_vegan_polishes.json"
+        # output_path = os.path.join(output_dir, output_file_name)
+        with open("morgan_taylor_vegan_polishes.json", 'w') as fp:
+            json.dump(polishes, fp, indent=1)
+        driver.close()
+
+
+    except Exception as e:
+        print(e)
+        driver.quit()
+
+
+if __name__ == '__main__':
+   #get_lacquer_products()
+    get_vegan_polishes()

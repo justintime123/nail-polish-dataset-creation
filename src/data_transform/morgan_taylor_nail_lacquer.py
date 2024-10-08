@@ -14,7 +14,7 @@ import pandas as pd
 import os
 import re
 
-finishes = ['CREME', 'PEARL', 'SHIMMER', 'SHEER', 'TRANSLUCENT',
+finishes = ['CRÈME', 'PEARL', 'SHIMMER', 'SHEER', 'TRANSLUCENT',
 'GLITTER', 'CHUNKY GLITTER', 'HOLOGRAPHIC', 'METALLIC',
 'IRIDESCENT', 'FROST', 'NEON','OVERLAY COAT', 'SPECKLES']
 #TODO: took out MULTI DIMENSIONAL. Check if it's the same as MULTICHROME
@@ -29,7 +29,7 @@ def split_alt_text_into_desc(df):
     #Can remove using re.sub: https://stackoverflow.com/questions/30945784/how-to-remove-all-characters-before-a-specific-character-in-python
     df['alt_text_new'] = df['alt_text'].apply(lambda text: re.sub(r'^.*?(?:oz.|Disco Days Nail Lacquer)', '', text))
     #Replace 'CR&Egrave;ME' with 'Creme'
-    df['alt_text_new'] = df['alt_text_new'].str.replace('CR&Egrave;ME','CREME')
+    df['alt_text_new'] = df['alt_text_new'].str.replace('CR&Egrave;ME','CRÈME')
 
     #Fixing exceptions to following regex
     df['alt_text_new'] = df['alt_text_new'].str.replace('DEEP PURPLE WITH SUBTLE PEARL','DEEP PURPLE PEARL')
@@ -83,7 +83,7 @@ def final_format(df):
     return df
 
 
-def get_df():
+def get_lacquer_df():
     json_file = "../../data/morgan_taylor_nail_lacquers.json"
     df = pd.read_json(json_file)
     #Parse alt_text for color shade, primary finish and secondary finish
@@ -98,10 +98,36 @@ def get_df():
 
     return df
 
+def split_desc_into_fields(df):
+    #Make description field all upper-case
+    df['description'] = df['description'].str.upper()
+    df['split'] = df['description'].apply(lambda x: re.findall(rf"^(.*?)\s({'|'.join(finishes)})", x))
+    return df
+
+def get_color_family():
+    #https://www.figma.com/colors
+    # For each polish, use rgb concentrations in swatch picture to determine closest match to color values in lacquer:
+    color_list = ['purple', 'pink', 'red', 'orange', 'coral', 'yellow', 'green', 'blue', 'neutral', 'metallic',
+                  'glitter']
+    return NotImplementedError()
+
+def get_vegan_df():
+    json_file = "../../data/morgan_taylor_vegan_polishes.json"
+    df = pd.read_json(json_file)
+
+    #Parse description for color_description and finish
+    df = split_desc_into_fields(df)
+
+    #Remove top coat from list
+    #Convert top_colors_per_percent into a color_family
+
+    return df
+
+
 
 if __name__ == '__main__':
     print(os.getcwd())
     #dir = "../data'
     #dir = "/Users/justinchassin/PycharmProjects/nailPolishProj"
-    df = get_df()
+    df = get_vegan_df()
     pass
