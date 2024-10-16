@@ -45,7 +45,7 @@ def get_each_vegan_polish_link(driver):
     #Collect links to each product
     html_doc = driver.page_source
     soup = BeautifulSoup(html_doc, 'html.parser')
-    list_of_products = soup.find_all('a', class_='information svelte-1cmn0v2')
+    list_of_products = soup.find_all('a', class_='information svelte-1burahp')
     product_links = [prod['href'] for prod in list_of_products]
     return product_links
 
@@ -53,9 +53,9 @@ def parse_vegan_polish_link(driver):
     html_doc = driver.page_source
     soup = BeautifulSoup(html_doc, 'html.parser')
     #Note: find gets the first match, while find_all gets all matches (https://stackoverflow.com/questions/59780916/what-is-the-difference-between-find-and-find-all-in-beautiful-soup-python)
-    name = soup.find('h2', class_='svelte-mmqmxq')
+    name = soup.find('h2', class_='svelte-apy8jy')
     #Description is in the first paragraph element
-    description = soup.find('div', class_='text product-description svelte-mmqmxq').find('p')
+    description = soup.find('div', class_='text product-description svelte-apy8jy').find('p')
     top_colors_by_percent = None
 
     if name is not None:
@@ -77,10 +77,26 @@ def parse_vegan_polish_link(driver):
         #https://stackoverflow.com/questions/57539233/how-to-open-an-image-from-an-url-with-opencv-using-requests-from-python
         response = requests.get(img_src_url, stream=True).raw
         with Image.open(response) as img:
+
+
+            #Crop a small section in the center of image using Image.crop:
+            #https://pillow.readthedocs.io/en/stable/_modules/PIL/Image.html#Image.crop
+            #This will reduce the # of colors to look at and account for glitter polishes
+            #that have particles of multiple colors
+            #Non-glitter and non-metallic polishes should only have 1 color value in the region
+            (left, upper, right, lower) = (55, 55, 65, 65)
+            img = img.crop((left, upper, right, lower))
+
             #https://stackoverflow.com/questions/59507676/how-to-get-the-dominant-colors-using-pillow
             reduced = img.convert("P", palette=Image.WEB)
-            image_dimensions = img.size
-            total_pixels = image_dimensions[0] * image_dimensions[1]
+            image_dimensions = reduced.size
+            length = image_dimensions[0]
+            width = image_dimensions[1]
+            total_pixels = length * width
+            center_x = length / 2
+            center_y = width / 2
+            crop_radius = 10  # number of pixels from center
+
             palette = reduced.getpalette()
             palette = [palette[3*n:3*n+3] for n in range(256)]
             color_concentrations = [(n, palette[m]) for n,m in reduced.getcolors()]
@@ -92,9 +108,8 @@ def parse_vegan_polish_link(driver):
             color_concentrations.sort(reverse=True)
             colors_by_percent = [(num_of_color / total_pixels, rgb_value) for num_of_color, rgb_value in
                                  color_concentrations]
-            #background color for each image is black [RGB value = (255,255,255)]
-            #Take top 5 color concentrations, ignoring black background. This assumes the top color is black and that the polish isn't black
-            top_colors_by_percent = colors_by_percent[0:5]
+            #Take top 3 color concentrations in cropped region
+            #top_colors_by_percent = colors_by_percent[0:3] if len(colors_by_percent)>=3 else
             #https://stackoverflow.com/questions/9694165/convert-rgb-color-to-english-color-name-like-green-with-python
         #https://www.quora.com/Can-we-accept-an-image-URL-as-input-in-Python
         #img = np.asarray(bytearray(response.read()), dtype="uint8")
@@ -111,17 +126,17 @@ def parse_vegan_polish_link(driver):
         print(e)
         return '', '', ''
 
-    return name, description, top_colors_by_percent
+    return name, description, colors_by_percent
 
 def dismiss_cookies_window(driver):
     # Dimiss cookies pop up
     # https://stackoverflow.com/questions/46669850/using-aria-label-to-locate-and-click-an-element-with-python3-and-selenium
     # I chose to use aria-label bc it was simpler to find elements
-    # No-thanks button: aria-label="No, thanks."
-    # "yes-thanks button: aria-label: "It´s Okay."
+    # No-thanks button: aria-label="Reject All"
+    # "yes-thanks button: aria-label: "Allow All"
     try:
         cookies_btn = WebDriverWait(driver, randint(5, 10)).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="No, thanks."]')))
+            EC.element_to_be_clickable((By.CSS_SELECTOR, '[aria-label="Reject All"]')))
         cookies_btn.click()
     except TimeoutException:
         #if button does not exist, skip
@@ -197,18 +212,22 @@ def get_vegan_polishes():
             polish = {'product_name': name, 'top_colors_by_percent': top_colors_by_percent, 'description': description, 'link': url_to_scrape}
             polishes.append(polish)
 
-        driver.quit()
+        #driver.quit()
 
         # output_dir = '../../data'
         # output_file_name = "morgan_taylor_vegan_polishes.json"
         # output_path = os.path.join(output_dir, output_file_name)
         with open("morgan_taylor_vegan_polishes.json", 'w') as fp:
             json.dump(polishes, fp, indent=1)
-        driver.close()
+        #driver.close()
 
 
     except Exception as e:
         print(e)
+        #driver.quit()
+        #driver.close()
+
+    finally:
         driver.quit()
 
 
