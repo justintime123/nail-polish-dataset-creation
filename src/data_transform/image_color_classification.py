@@ -1,11 +1,10 @@
-#Polish finishes such as metallic, pearls and shimmers have extra particles that makes color classification harder
-#I tried some image blurring techniques to make these images less noisy
-#Median or Gaussian Blur had the best results
+
 import cv2
 import numpy as np
 import colorsys
 import math
 import os
+import pandas as pd
 from scipy.stats import false_discovery_control
 
 
@@ -47,7 +46,10 @@ def crop_image(img):
     return img
 
 def apply_blur(img):
-    #Return image with applied Gaussian blur
+    # Polish finishes such as metallic, pearls and shimmers have extra particles that makes color classification harder
+    # I tried some image blurring techniques to make these images less noisy
+    # Median or Gaussian Blur had the best results
+    # I used code from this Medium article: https://medium.com/@henriquevedoveli/blur-in-image-processing-an-introductory-guide-88a9550985e7
     return gaussian_blur(img, 15)
 
 def get_dominant_color_using_k_means(img):
@@ -81,38 +83,42 @@ def get_dominant_color_in_image(img_path):
     #Return dominant color in RGB
     return dominant_color
 
-def convert_rgb_to_color_name(rgb_value):
-    #First convert to HSL values, where h is in degrees and l,s are in %
-    #HSL is easier for distinguishing between neutrals and non-neutrals
-    r,g,b = rgb_value
-    r,g,b = r/255.0, g/255.0, b/255.0
-    hue,lightness,saturation = colorsys.rgb_to_hls(r,g,b)
+def convert_rgb_to_hsl(rgb_value):
+    # First convert to HSL values, where h is in degrees and l,s are in %
+    # HSL is easier for distinguishing between neutrals and non-neutrals
+    r, g, b = rgb_value
+    r, g, b = r / 255.0, g / 255.0, b / 255.0
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
 
-    #Set-up for calculation
+    # Set-up for calculation
     # Convert hue to number of degrees
     hue = hue * 360
 
-    print(f"HSL colors: {hue, saturation, lightness}")
+    return hue, saturation, lightness
+
+def convert_hsl_to_color_name(hsl_value):
+
+    hue,saturation,lightness = hsl_value
 
     #In HSL model, "neutrals" are considered low saturation
     #moving luma to the lower end adds black to color, while the higher end adds white
     #https://vanseodesign.com/web-design/hue-saturation-and-lightness/#:~:text=Saturation%20refers%20to%20how%20pure,to%20a%2075%25%20saturated%20hue.:
     #saturation determines amount of gray in an image, where 1 is no gray (pure) and 0 is all gray
 
-    #Changed the inspo code:
+    #Inspo code: https://stackoverflow.com/questions/75838909/how-to-get-rough-boundaries-to-classify-colors-into-named-colors
+    #Changed code from luna to saturation
     #Color vs. Saturation: https://munsell.com/color-blog/difference-chroma-saturation/
     #https://photo.stackexchange.com/questions/14820/what-do-hue-chroma-saturation-value-tones-tints-shade-etc-mean
-    #used this website to help determine color ranges: https://hslpicker.com/#c93644c7
+    #I used this website to help determine color ranges: https://hslpicker.com/#c93644c7
 
-    #https://stackoverflow.com/questions/75838909/how-to-get-rough-boundaries-to-classify-colors-into-named-colors
     unsaturated = saturation < 0.15
     if unsaturated:
         if lightness < 0.1:
-            return "black"
+            return "black (neutral)"
         elif lightness < 0.9:
-            return "gray"
+            return "gray (neutral)"
         else:
-            return "white"
+            return "white (neutral)"
 
     color = ""
 
@@ -133,24 +139,40 @@ def convert_rgb_to_color_name(rgb_value):
         color = "green"
     elif hue < 263:
         color = "blue"
-    elif hue < 293:
+    elif hue < 300:
         color = "purple"
+    elif hue < 335:
+        #formerly 330
+        #For simplicity, I'll assume magenta is pink
+        color = "pink (magenta)"
     else:
         color = "red"
 
     #Classification: pink is either magenta (hot pink) or a lighter shade of red (white added to red)
     #for pink, high lightness and certain range of saturation below 0.5
-    if color== "red" and lightness>0.7 and saturation > 0.5:
-        color = "pink"
+    #pink is a lighter shade of red, rose or magenta
+    #TODO: Add in magenta range (see High Voltage)
+    #https://simple.wikipedia.org/wiki/Magenta
+    #https://en.wikipedia.org/wiki/Shades_of_magenta#:~:text=Magenta%20is%20a%20color%20made,a%20hue%20of%20300%C2%B0.
+    #https://www.google.com/search?q=how+to+get+pink+from+magenta+in+hsl&sca_esv=26201d1b1489b96d&sxsrf=ADLYWILt-7jvj2_d1sAQnUJUa4j1c634NQ%3A1730009547380&ei=y9kdZ7f0Fv-p5NoPkZyw0AY&ved=0ahUKEwj3hZ7k862JAxX_FFkFHREODGoQ4dUDCBA&uact=5&oq=how+to+get+pink+from+magenta+in+hsl&gs_lp=Egxnd3Mtd2l6LXNlcnAiI2hvdyB0byBnZXQgcGluayBmcm9tIG1hZ2VudGEgaW4gaHNsMgcQIRigARgKMgcQIRigARgKMgcQIRigARgKMgcQIRigARgKMgcQIRigARgKSKQRUNoCWLsPcAF4AZABAJgBhQGgAcEFqgEDNC4zuAEDyAEA-AEBmAIIoALiBcICChAAGLADGNYEGEfCAgYQABgWGB7CAggQABgWGB4YD8ICCxAAGIAEGIYDGIoFwgIIEAAYgAQYogTCAggQABgWGAoYHsICCBAAGKIEGIkFwgIFECEYoAHCAgUQIRirAsICBRAhGJ8FmAMAiAYBkAYIkgcDNS4zoAfaKQ&sclient=gws-wiz-serp
+    #https://www.google.com/search?q=is+magenta+and+pink+same&oq=is+magenta+and+pink&gs_lcrp=EgZjaHJvbWUqBwgAEAAYgAQyBwgAEAAYgAQyBggBEEUYOTIICAIQABgWGB4yCAgDEAAYFhgeMggIBBAAGBYYHjIICAUQABgWGB4yCAgGEAAYFhgeMggIBxAAGBYYHjIICAgQABgWGB4yCAgJEAAYFhge0gEINDA5MGowajmoAgCwAgE&sourceid=chrome&ie=UTF-8
+    if color== "red" and lightness>=0.65 and not unsaturated:
+        color = "pink (light red)"
 
     return color
 
 
 def classify_dominant_color_in_img(image_path):
-    print(f"***** {image_path} *****")
-    dominant_img = get_dominant_color_in_image(image_path)
-    print('Dominant color is: rgb({})'.format(dominant_img))
-    print("Color name: ", convert_rgb_to_color_name(dominant_img))
+    file_name = image_path.split("/")[-1]
+    product_name = file_name.partition("-SWATCH")[0]
+    original_color_name = image_path.split("/")[-2]
+
+    dominant_rgb_color = get_dominant_color_in_image(image_path)
+    dominant_hsl_color = convert_rgb_to_hsl(dominant_rgb_color)
+    new_color_name = convert_hsl_to_color_name(dominant_hsl_color)
+
+    return {'product_name': product_name, 'dominant_color_rgb': dominant_rgb_color, 'dominant_color_hsl': dominant_hsl_color,
+            'original_color_name': original_color_name, 'new_color_name': new_color_name}
 
 def list_files(dir):
     #https://stackoverflow.com/questions/19932130/iterate-through-folders-then-subfolders-and-print-filenames-with-path-to-text-f
@@ -164,6 +186,24 @@ def list_files(dir):
     return r
 
 
+def test_classification_on_sample_images():
+    opi_image_path = 'sample_images/opi/'
+    morgan_taylor_path = 'sample_images/morgan_taylor/'
+
+    file_list = list_files(morgan_taylor_path)
+    results = []
+    for file in file_list:
+        if ".webp" in file:
+            res = classify_dominant_color_in_img(file)
+            results.append(res)
+
+    #save results to an Excel file
+    #will add extra column to keep track of correct vs. incorrect classifications
+    df = pd.DataFrame(results)
+    print(df)
+    df.to_excel('ImageClassificationTest.xlsx')
+    pass
+
 
 #Sources:
 #https://stackoverflow.com/questions/32034344/accurately-detect-color-regions-in-an-image-using-k-means-clustering
@@ -171,39 +211,7 @@ def list_files(dir):
 #https://engineering.empathy.co/image-color-recognition-a-practical-example/
 
 if __name__=='__main__':
-    opi_image_path = 'sample_images/opi/'
-    morgan_taylor_path = 'sample_images/morgan_taylor/'
-
-    file_list = list_files(morgan_taylor_path)
-    for file in file_list:
-        if ".webp" in file:
-            classify_dominant_color_in_img(file)
-
-    # #https://stackoverflow.com/questions/72649116/best-way-to-loop-through-files
-    # for img_name in morgan_taylor_imgs:
-    #     image_path = morgan_taylor_path + img_name
-    #     print(f"***** {img_name} *****")
-    #     dominant_img = get_dominant_color_in_image(image_path)
-    #     print('Dominant color is: rgb({})'.format(dominant_img))
-    #     print("Color name: ", convert_rgb_to_color_name(dominant_img))
-    #
-    # for img_name in opi_imgs:
-    #     image_path = opi_image_path + img_name
-    #     print(f"***** {img_name} *****")
-    #     dominant_img = get_dominant_color_in_image(image_path)
-    #     print('Dominant color is: rgb({})'.format(dominant_img))
-    #     print("Color name: ", convert_rgb_to_color_name(dominant_img))
-
-    # image_path = morgan_taylor_path + 'shine_on_morgan_taylor.webp'
-    # dominant_img = get_dominant_color_in_image(image_path)
-    # print('Dominant color is: rgb({})'.format(dominant_img))
-    # print("Color name: ", convert_rgb_to_color_name(dominant_img))
-   #  # img = cv2.imread(image_path)
-   #
-   #
-   #
-   #  #Switch from BGR to RGB
-   #  #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    test_classification_on_sample_images()
    #
    #  #Apply blur to reduce noise in shimmers and other polishes with particles
    #  #https://medium.com/@henriquevedoveli/blur-in-image-processing-an-introductory-guide-88a9550985e7
@@ -225,8 +233,6 @@ if __name__=='__main__':
    #  # k_means.fit(img_gaussian_blur)
    #  #
    #  # colors = np.asarray(k_means.cluster_centers_, dtype='uint8')
-   #
-   #
    #
    #
    #  cv2.imshow('Original', img)
