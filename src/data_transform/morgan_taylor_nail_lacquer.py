@@ -13,6 +13,7 @@ import re
 import pandas as pd
 import os
 import re
+from image_color_classification import convert_rgb_color_to_color_family
 
 finishes = ['CRÈME', 'PEARL', 'SHIMMER', 'SHEER', 'TRANSLUCENT',
 'GLITTER', 'CHUNKY GLITTER', 'HOLOGRAPHIC', 'METALLIC',
@@ -70,10 +71,10 @@ def split_alt_text_into_desc(df):
     return df
 
 def final_format(df):
-    needed_cols = ['brand', 'product_name', 'product_type', 'color_family', 'color_shade', 'primary_finish',
+    needed_cols = ['brand', 'product_name', 'product_type', 'orig_color_family', 'new_color_family', 'color_shade', 'primary_finish',
                    'secondary_finish', 'original_description', 'link']
 
-    rename_cols = {'color': 'color_family',
+    rename_cols = {'color': 'orig_color_family',
                    'alt_text_new': 'original_description'}
 
     df = df.rename(columns=rename_cols)
@@ -84,15 +85,18 @@ def final_format(df):
 
 
 def get_lacquer_df():
-    json_file = "../../data/morgan_taylor_nail_lacquers.json"
-    df = pd.read_json(json_file)
+    json_file = "../../data/step_2/morgan_taylor_lacquer_polishes.parquet"
+    df = pd.read_parquet(json_file)
     #Parse alt_text for color shade, primary finish and secondary finish
     df = split_alt_text_into_desc(df)
+
+    df['new_color_family'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
 
     #Clean up dataframe and remove unneeded columns, to conform to data/df_format
     #I'm going to leave in the formatted alt_text, to show how 'color_shade', 'primary_finish' and 'secondary_finish' were derived
     #This could be good for data validation later on
     df = final_format(df)
+
 
     #TODO: fill in missing data
 
@@ -102,150 +106,30 @@ def split_desc_into_fields(df):
     #Make description field all upper-case
     df['description'] = df['description'].str.upper()
     df['split'] = df['description'].apply(lambda x: re.findall(rf"^(.*?)\s({'|'.join(finishes)})", x))
+
+    df['split'] = df['split'].apply(lambda x: x[0] if len(x) > 0 else ('', ''))
+    df['color_desc'], df['primary_finish'],  = zip(*df['split'])
     #TODO: Add Shimmer finish to 'Stop and Listen'
     return df
 
-def get_top_rgb_value(colors_by_percent):
-    #TODO: Improve process by returning subset of colors_by_percent that make up some % amount of composition
-    # percent = 0.90
-    #add colors to percentile until percent covered >= percent
-    #Put glitter in its own category
-    return colors_by_percent[0][1]
-
-def get_color_name(rgb):
-    # rgb_colors_by_family = {
-    #     'purple':
-    #         {
-    #             'periwinkle': (204,204,255),
-    #             'dark purple': (52,21,57),
-    #             'purple': (157,0,255)
-    #         },
-    #     'pink': {
-    #         'light pink': (255,181,192),
-    #         'pink': (255,141,161),
-    #         'hot pink': (255,70,162)
-    #
-    #     },
-    #     'red':
-    #         {'red': (255,44,44),
-    #          'maroon': (85,0,0),
-    #          'burgundy': (102,0,51)
-    #          },
-    #     'orange':
-    #         {'orange': (255,165,0),
-    #          'nude': (247,217,188),
-    #          'coral': (255,133,89)},
-    #     'yellow':
-    #         {'yellow': (255,222,33),
-    #          'gold': (239,191,4)},
-    #     'green':
-    #         {'green': (0,128,0)},
-    #     'blue':
-    #         {'blue': (0,0,255)},
-    #     'neutrals': #for pure neutrals, R,G and B channels are equal
-    #         {'light gray': (211,211,211),
-    #          'rose gold': (222,161,147),
-    #          'brown': (137,81,41),
-    #          'off-white': (242,240,239),
-    #          'black': (0,0,0)
-    #          }
-    # }
-    #  'purple': (157, 0, 255),
-    #     'periwinkle': (204, 204, 255),
-    #     'dark purple': (52, 21, 57),
-    #     'light pink': (255, 181, 192),
-    #     'pink': (255, 141, 161),
-    #     'hot pink': (255, 70, 162),
-    #     'fuscia': (255,0,255),
-    #     'red': (255, 44, 44),
-    #     'maroon': (85, 0, 0),
-    #     'burgundy': (102,0,51),
-    #     'orange': (255, 165, 0),
-    #     #'nude orange': (247, 217, 188),
-    #     'coral': (255, 133, 89),
-    #     'yellow': (255, 222, 33),
-    #     'gold': (239, 191, 4),
-    #     'green': (0, 128, 0),
-    #     'blue': (0, 0, 255),
-    rgb_colors_by_family = {
-       'red': (255,0,0),
-        'rose': (255,0,128),
-        'magenta': (255,0,255),
-        'violet': (128,0,255),
-        'dark purple': (52, 21, 57),
-        'blue': (0,0,255),
-        'azure': (0,128,255),
-        'cyan': (0,255,255),
-        'spring green': (0,255,128),
-        'green': (0,255,0),
-        'chartreuse': (128, 255, 0),
-        'yellow': (255,255,0),
-        'orange': (255,128,0)}
-        # 'light gray': (211, 211, 211),
-        # 'rose gold': (222, 161, 147),
-        # 'brown': (137, 81, 41),
-        # 'off-white': (242, 240, 239),
-        # 'black': (0, 0, 0)
-
-
-    # algorithm to match closest color using Euclidean distance
-    # Src: https://stackoverflow.com/questions/9694165/convert-rgb-color-to-english-color-name-like-green-with-python
-
-    #For pure neutrals, R=G=B
-    #For near neutrals, r,g and b values are close to each other
-    #For simplicity, I'll define near-neutrals as when r,g and b values are within 50 values of each other
-
-    #Neutral test
-    r_g_distance = abs(rgb[0] - rgb[1])
-    r_b_distance = abs(rgb[0] - rgb[2])
-    b_g_distance = abs(rgb[1] - rgb[2])
-    if r_g_distance<=55 and r_b_distance<=55 and b_g_distance<=55:
-        return 'neutral'
-
-    #If not, test for non-neutral categories
-    names_by_distance = {}
-    for name, rgb_value in rgb_colors_by_family.items():
-        r_c, g_c, b_c = rgb_value
-        r_distance = (r_c - rgb[0]) ** 2
-        g_distance = (g_c - rgb[1]) ** 2
-        b_distance = (b_c - rgb[2]) ** 2
-        euclidean_distance = r_distance + g_distance + b_distance
-        names_by_distance[(euclidean_distance)] = name
-
-    #Return color name corresponding to minimum distance
-    return names_by_distance[min(names_by_distance.keys())]
-
-
-def get_color_family(df):
-    #https://www.figma.com/colors
-
-    df['top_color_rgb'] =  df['top_colors_by_percent'].apply(lambda x: get_top_rgb_value(x))
-    df['top_color_name'] = df['top_color_rgb'].apply(lambda x: get_color_name(x))
-    # For each polish, use rgb concentrations in swatch picture to determine closest match to color values in lacquer:
-    color_list = ['purple', 'pink', 'red', 'orange'', coral', 'yellow', 'green', 'blue', 'neutrals', 'metallic',
-                  'glitter']
-
-    return df
-
-
 def get_vegan_df():
-    json_file = "../../data/morgan_taylor_vegan_polishes.json"
-    df = pd.read_json(json_file)
+    json_file = "../../data/step_2/morgan_taylor_vegan_polishes.parquet"
+    df = pd.read_parquet(json_file)
 
     #Parse description for color_description and finish
     df = split_desc_into_fields(df)
 
-    #Remove top coat from list
-    #Convert top_colors_per_percent into a color_family
-    df = get_color_family(df)
+    #Convert dominant color into color value
+    df['new_color_family'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
+
+
+    df = final_format(df)
 
     return df
 
 
 
 if __name__ == '__main__':
-    print(os.getcwd())
-    #dir = "../data'
-    #dir = "/Users/justinchassin/PycharmProjects/nailPolishProj"
-    df = get_vegan_df()
+    vegan_df = get_vegan_df()
+    lacquer_df = get_lacquer_df()
     pass

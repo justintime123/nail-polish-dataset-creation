@@ -8,6 +8,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+import datetime
 
 
 # For all prods in polish_list, get below attrs and parse for Product Type/Product Name
@@ -37,11 +38,12 @@ def get_product_type_and_name(prod_tag):
     return {'product-type': prod_tag.contents[0].text,
             'product-name': prod_tag.contents[1].text}
 
-
+def get_time_collected():
+    return {'time_collected': str(datetime.datetime.now())}
 
 def get_attrs_by_product(driver):
     product_tags = get_each_by_opi_product_tag(driver)
-    attrs_by_prod = [get_attrs_for_product(prod.attrs) | get_product_type_and_name(prod) for prod in product_tags]
+    attrs_by_prod = [get_attrs_for_product(prod.attrs) | get_product_type_and_name(prod) | get_time_collected() for prod in product_tags]
     return attrs_by_prod
 
 
@@ -94,8 +96,10 @@ def get_products_from_site(start_page=1, end_page=None):
         time.sleep(randint(30, 40))
         prods = get_attrs_by_product(driver)
         # Write results to json file
-        end_page = 25
-        output_file = f"data/opi_products_pages_{start_page}_thru_{end_page}.json"
+        if end_page is None:
+            output_file = f"'../data/step_1/opi_products_pages_{start_page}_thru_last_page.json"
+        else:
+            output_file = f"../data/step_1/opi_products_pages_{start_page}_thru_{end_page}.json"
         with open(output_file, 'w') as fp:
             json.dump(prods, fp)
         driver.close()
