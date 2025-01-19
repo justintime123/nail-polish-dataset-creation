@@ -1,4 +1,3 @@
-import json
 from random import randint
 import requests
 
@@ -11,10 +10,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 import cv2
 import pandas as pd
 import datetime
-from src.utils.path import Path
 
 import numpy as np
-from src.data_transform.image_color_classification import get_dominant_color_in_np_image
+from src.dataset_creation.data_transform.tools.image_color_classification.image_color_classification import get_dominant_color_in_np_image
 
 def dismiss_cookies_window(driver):
     # Dimiss cookies pop up
@@ -121,13 +119,13 @@ def scrape_data_from_each_vegan_product_link():
     try:
         driver = webdriver.Chrome()
         #get input data from step 1
-        data = pd.read_json("../../../data/step_1/morgan_taylor_vegan_polishes.json")
+        data = pd.read_json("../../../../data/step_1/morgan_taylor_vegan_polishes.json")
         #iterate thru each link and append new data
 
         #https://stackoverflow.com/questions/23586510/return-multiple-columns-from-pandas-apply
         data['product_name'], data['dominant_rgb_color'], data['description'], data['time_collected'] = zip(*data['link'].apply(lambda x: parse_vegan_polish_link(driver, x)))
 
-        output_dir = '../../../data/step_2'
+        output_dir = '../../../../data/step_2'
         output_file_name = "morgan_taylor_vegan_polishes.parquet"
         output_path = output_dir + "/" + output_file_name
         data.to_parquet(output_path)
@@ -144,13 +142,13 @@ def scrape_data_from_each_lacquer_link():
     try:
         driver = webdriver.Chrome()
         #get input data from step 1
-        data = pd.read_json("../../../data/step_1/morgan_taylor_nail_lacquers.json")
+        data = pd.read_json("../../../../data/step_1/morgan_taylor_nail_lacquers.json")
         #iterate thru each link and append new data
 
         #https://stackoverflow.com/questions/23586510/return-multiple-columns-from-pandas-apply
         data['dominant_rgb_color'], data['time_collected'] = zip(*data['link'].apply(lambda x: parse_lacquer_link(driver, x)))
 
-        output_dir = '../../../data/step_2'
+        output_dir = '../../../../data/step_2'
         output_file_name = "morgan_taylor_lacquer_polishes.parquet"
         output_path = output_dir + "/" + output_file_name
         data.to_parquet(output_path)

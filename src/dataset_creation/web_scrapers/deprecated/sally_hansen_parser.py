@@ -111,7 +111,7 @@ class SallyHansenScraper:
             self.driver.quit()
 
             # save to file
-            output_dir = '../../../data'
+            output_dir = '../../../../data'
             output_file_name = "sally_hansen_products_and_links_by_line.json"
             output_path = os.path.join(output_dir, output_file_name)
             with open(output_path, 'w') as fp:
@@ -180,7 +180,7 @@ class SallyHansenScraper:
 
 
             #save to file
-            output_dir = '../../../data'
+            output_dir = '../../../../data'
             output_file_name = "sally_hansen_products_by_filter.json"
             output_path = os.path.join(output_dir, output_file_name)
             with open(output_path, 'w') as fp:

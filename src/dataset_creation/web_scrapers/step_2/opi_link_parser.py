@@ -1,6 +1,7 @@
-import json
 from random import randint
 import requests
+import os
+import concurrent.futures
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -11,10 +12,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 import cv2
 import pandas as pd
 import datetime
-from src.utils.path import Path
 
 import numpy as np
-from src.data_transform.image_color_classification import get_dominant_color_in_np_image
+from src.dataset_creation.data_transform.tools.image_color_classification.image_color_classification import get_dominant_color_in_np_image
 
 def dismiss_cookies_window(driver):
     # Dimiss cookies pop up
@@ -42,10 +42,10 @@ def parse_lacquer_link(driver, link):
     #Note: find gets the first match, while find_all gets all matches (https://stackoverflow.com/questions/59780916/what-is-the-difference-between-find-and-find-all-in-beautiful-soup-python)
     try:
         #Use XPath contains method to find swatch images
-        swatch_img_tag = driver.find_element(By.XPATH, "//img[contains(@alt, 'Swatch')]")
-        img_url = swatch_img_tag['srcset']
+        #Get 3rd picture from list of images
+        swatch_img_tag = driver.find_elements(By.XPATH, "//img[contains(@srcset, '16w')]")[2]
+        img_url = swatch_img_tag.get_attribute("srcset").split(",")[-1].split(" ")[1] #TODO: clean up line
         response = requests.get(img_url, stream=True).raw
-
         img = np.asarray(bytearray(response.read()), dtype="uint8")
         img = cv2.imdecode(img, cv2.IMREAD_COLOR)
 
@@ -59,31 +59,39 @@ def parse_lacquer_link(driver, link):
 
     return dominant_rgb_color, str(datetime.datetime.now())
 
-def scrape_data_from_each_lacquer_link():
+def scrape_link_data_from_batch(batch: pd.DataFrame) -> pd.DataFrame:
+    driver = webdriver.Chrome()
     try:
-        driver = webdriver.Chrome()
+        batch['dominant_rgb_color'], batch['time_collected'] = zip(
+        *batch['href'].apply(lambda x: parse_lacquer_link(driver, x)))
+    except Exception as e:
+        print(e)
+    finally:
+        driver.quit()
+        return batch
+
+
+def scrape_link_data():
+    try:
         #get input data from step 1
-        data = pd.read_json("../../../data/step_1/opi_products_pages_1_thru_last_page.json")
-        #iterate thru each link and append new data
+        data = pd.read_json("../../../../data/step_1/opi_products_pages_1_thru_last_page.json")
 
-        #https://stackoverflow.com/questions/23586510/return-multiple-columns-from-pandas-apply
-        data['dominant_rgb_color'], data['time_collected'] = zip(*data['href'].apply(lambda x: parse_lacquer_link(driver, x)))
+        #Use multithreading to speed up link parsing (for ~500 products)
+        available_processors = os.cpu_count()
+        batches = np.array_split(data, available_processors)
 
-        output_dir = '../../../data/step_2'
+        with concurrent.futures.ProcessPoolExecutor(available_processors) as executer:
+            output = pd.concat(executer.map(scrape_link_data_from_batch, batches))
+
+        output_dir = '../../../../data/step_2'
         output_file_name = "opi_products.parquet"
         output_path = output_dir + "/" + output_file_name
-        data.to_parquet(output_path)
+        output.to_parquet(output_path)
 
     except Exception as e:
         print(e)
-        #driver.quit()
-        #driver.close()
-
-    finally:
-        driver.quit()
-
 
 if __name__=='__main__':
-    scrape_data_from_each_lacquer_link()
+    scrape_link_data()
 
 

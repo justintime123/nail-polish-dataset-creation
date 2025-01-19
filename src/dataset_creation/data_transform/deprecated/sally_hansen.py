@@ -9,7 +9,7 @@ def transform_df():
     return
 
 def get_df():
-    json_file = "../../data/sally_hansen_products_by_filter.json"
+    json_file = "../../../../data/sally_hansen_products_by_filter.json"
     df = pd.read_json(json_file)
     return df
 

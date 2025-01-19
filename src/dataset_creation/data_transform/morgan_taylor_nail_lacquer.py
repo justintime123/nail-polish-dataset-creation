@@ -9,11 +9,9 @@
 #To get... {color_detail} {finish_1} ... {color detail 2} {finish_2}
 
 #Use regex to experiment with parsing using the above format
-import re
 import pandas as pd
-import os
 import re
-from image_color_classification import convert_rgb_color_to_color_family
+from src.dataset_creation.data_transform.tools.image_color_classification.image_color_classification import convert_rgb_color_to_color_family
 
 finishes = ['CRÈME', 'PEARL', 'SHIMMER', 'SHEER', 'TRANSLUCENT',
 'GLITTER', 'CHUNKY GLITTER', 'HOLOGRAPHIC', 'METALLIC',
@@ -71,15 +69,18 @@ def split_alt_text_into_desc(df):
     return df
 
 def final_format(df):
-    needed_cols = ['brand', 'product_name', 'product_type', 'orig_color_family', 'new_color_family', 'color_shade', 'primary_finish',
-                   'secondary_finish', 'original_description', 'link']
+    # needed_cols = ['brand', 'product_name', 'new_color_family', 'color_shade', 'primary_finish',
+    #                'secondary_finish', 'original_description', 'link']
+    ##TODO: add product_type,
+    #keep_cols = ['product_name', 'product_type', 'orig_color_family', 'new_color_family', 'primary_finish', 'link']
 
-    rename_cols = {'color': 'orig_color_family',
-                   'alt_text_new': 'original_description'}
+    rename_cols = {'description': 'original_description'}
 
     df = df.rename(columns=rename_cols)
 
-    df = df[needed_cols]
+    df['brand'] = 'Morgan Taylor'
+
+    #df = df[needed_cols]
 
     return df
 
@@ -127,9 +128,13 @@ def get_vegan_df():
 
     return df
 
+def get_df():
+    vegan_df = get_vegan_df()
+    lacquer_df = get_lacquer_df()
+    df = pd.concat([vegan_df, lacquer_df])
+    return df
+
 
 
 if __name__ == '__main__':
-    vegan_df = get_vegan_df()
-    lacquer_df = get_lacquer_df()
-    pass
+    df = get_df()
