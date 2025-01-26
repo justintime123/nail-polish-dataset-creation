@@ -10,8 +10,10 @@
 
 #Use regex to experiment with parsing using the above format
 import pandas as pd
+import os
 import re
 from src.dataset_creation.data_transform.tools.image_color_classification.image_color_classification import convert_rgb_color_to_color_family
+from config import DATA_STEP_2
 
 finishes = ['CRÈME', 'PEARL', 'SHIMMER', 'SHEER', 'TRANSLUCENT',
 'GLITTER', 'CHUNKY GLITTER', 'HOLOGRAPHIC', 'METALLIC',
@@ -71,27 +73,32 @@ def split_alt_text_into_desc(df):
 def final_format(df):
     # needed_cols = ['brand', 'product_name', 'new_color_family', 'color_shade', 'primary_finish',
     #                'secondary_finish', 'original_description', 'link']
-    ##TODO: add product_type,
     #keep_cols = ['product_name', 'product_type', 'orig_color_family', 'new_color_family', 'primary_finish', 'link']
+    keep_cols = ['brand','product_name', 'product_type', 'orig_color', 'new_color', 'dominant_rgb_color', 'primary_finish', 'link', 'time_collected']
 
-    rename_cols = {'description': 'original_description'}
+
+    df['primary_finish'] = df['primary_finish'].str.upper()
+    rename_cols = {'description': 'original_description',
+                   'color_shade': 'orig_color',
+                   'color_desc': 'orig_color'}
 
     df = df.rename(columns=rename_cols)
 
-    df['brand'] = 'Morgan Taylor'
-
-    #df = df[needed_cols]
+    df = df[keep_cols]
 
     return df
 
 
 def get_lacquer_df():
-    json_file = "../../data/step_2/morgan_taylor_lacquer_polishes.parquet"
+    json_file = DATA_STEP_2 / "morgan_taylor_lacquer_polishes.parquet"
     df = pd.read_parquet(json_file)
+
+    df['product_type'] = 'Nail Lacquer'
     #Parse alt_text for color shade, primary finish and secondary finish
     df = split_alt_text_into_desc(df)
 
-    df['new_color_family'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
+    df = df.rename(columns = {'color_shade': 'orig_color'})
+    df['new_color'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
 
     #Clean up dataframe and remove unneeded columns, to conform to data/df_format
     #I'm going to leave in the formatted alt_text, to show how 'color_shade', 'primary_finish' and 'secondary_finish' were derived
@@ -114,15 +121,18 @@ def split_desc_into_fields(df):
     return df
 
 def get_vegan_df():
-    json_file = "../../data/step_2/morgan_taylor_vegan_polishes.parquet"
+    json_file = DATA_STEP_2 / "morgan_taylor_vegan_polishes.parquet"
     df = pd.read_parquet(json_file)
+
+    df['product_type'] = 'Vegan'
 
     #Parse description for color_description and finish
     df = split_desc_into_fields(df)
 
     #Convert dominant color into color value
-    df['new_color_family'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
+    df['new_color'] = df['dominant_rgb_color'].apply(lambda x: convert_rgb_color_to_color_family(str(x).split(",")))
 
+    df['brand'] = 'Morgan Taylor'
 
     df = final_format(df)
 
