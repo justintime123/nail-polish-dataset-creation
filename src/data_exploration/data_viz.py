@@ -8,9 +8,12 @@ from dash import Dash, html, dcc, callback, Output, Input, dash_table
 
 def get_data():
     df = pd.read_parquet(PROCESSED_DATA_PATH)
-    keep_cols = ['brand', 'product_name', 'product_type', 'primary_finish', 'new_color']
+    keep_cols = ['brand', 'product_name', 'product_type', 'primary_finish', 'new_color', 'link']
     df = df[keep_cols]
+    df.loc[(df['brand'] == 'Morgan Taylor')&(~df['link'].str.contains('http')), 'link'] = 'https://gelish.com' + df['link']
+    df.loc[df['brand']=='OPI', 'link'] = 'https://opi.com' + df['link']
     df = df.rename(columns={'new_color': 'color', 'primary_finish': 'finish'})
+    df = df.replace('', np.nan)
     return df
 
 def get_bucketed_data(variable):
@@ -28,7 +31,7 @@ def get_bucketed_data(variable):
     data['bucket'] = np.where(data[variable].isin(other_values), 'OTHER', data[variable])
 
     # Add bucket for missing values
-    data['bucket'] = np.where(data[variable] == '', 'UNMAPPED', data['bucket'])
+    data['bucket'] = np.where(data[variable].isna(), 'UNMAPPED', data['bucket'])
 
     bucket_col_name = f"{variable}_bucket"
 
@@ -117,17 +120,45 @@ def update_dashtable(clickData, value, brand):
     df = get_bucketed_data(value)
     #filter dataframe according to selected category
     df = df[(df[f"{value}_bucket"]==bucket_selected) & (df['brand']==brand)]
-    display_cols = ['product_name', 'color', 'finish']
+    display_cols = ['product_name', 'color', 'finish', 'link']
     #display_cols = ['product_name', 'finish', 'product_type', f"{value}_bucket"]
     df = df[display_cols]
-    df = df.rename(columns={'product_name': 'Product Name', 'color': 'Color', 'finish': 'Finish'})
+    #Modifying link column to match Markdown format, so it can be clickable
+    df['link'] = '[Link]' + '(' + df['link'] + ')'
+    df = df.rename(columns={'product_name': 'Product Name', 'color': 'Color', 'finish': 'Finish', 'link': 'Link'})
     table = dash_table.DataTable(data=df.to_dict('records'),
+                                 columns=[
+                                     {"id": col, "name": col, "presentation": "markdown"} if col=='Link' else {"id": col, "name": col} for col in df.columns
+                                 ],
+                                 markdown_options={"link_target": "_blank"}, #setting to open new tab when user clicks on link
                                  page_size=5,
                                  style_header={
                                      'backgroundColor': 'snow',
                                      'fontWeight': 'bold',
                                  },
-                                 style_data = {})
+                                 style_data = {},
+                                 style_cell = {
+                                     'overflow': 'hidden',
+                                     'textOverflow': 'ellipsis'
+                                 },
+                                 css=[dict(selector="p", rule="margin: 0; text-align: center")],
+                                 style_data_conditional=[
+                                     {
+                                        'if': {
+                                            'column_id': 'Color',
+                                            'filter_query': '{Color} is nil'
+                                        },
+                                         'backgroundColor': 'silver'
+                                     }, {
+
+                                        'if': {
+                                             'column_id': 'Finish',
+                                             'filter_query': '{Finish} is nil'
+                                         },
+                                         'backgroundColor': 'silver'
+                                     }
+                                 ]
+                                 )
 
                                  # tooltip_header={'swatch_rgb_color': 'RGB value obtained from product image. This RGB value was mapped to a color'},
                                  # style_cell={'overflow': 'hidden',
@@ -136,7 +167,6 @@ def update_dashtable(clickData, value, brand):
                                  # tooltip_delay=0,
                                  # tooltip_duration=None)
     #TODO: Add hyperlinked emojis to link products
-    #TODO: change color of swatch_hex_colors using style_data_conditional and columns. Highlight cells with empty values
     return table
 
 
