@@ -6,7 +6,7 @@ from config import PROCESSED_DATA_PATH
 def get_data():
     morgan_taylor = morgan_taylor_nail_lacquer.get_df()
     opi = opi_products.get_df()
-    return pd.concat([morgan_taylor, opi])
+    return pd.concat([morgan_taylor, opi], ignore_index=True)
 
 def save_data():
     df = get_data()
