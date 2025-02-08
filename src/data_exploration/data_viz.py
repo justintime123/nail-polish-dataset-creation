@@ -90,10 +90,13 @@ def get_pie_chart(brand, variable):
     return fig
 
 app = Dash()
+app.title = 'Comparison of Nail Polish Attributes Between Brands'
 app.layout = html.Div(children = [
-    html.H1(children='Comparison of Nail Polish Attributes Between Brands'),
-    html.Div(children='Select attribute below:'),
-    dcc.Dropdown(['color', 'finish'], 'color', id='dropdown'),
+    html.Div([
+        html.Label(['Select attribute: '], style={'font-weight': 'bold'}),
+        dcc.Dropdown(['color', 'finish'], 'color', id='dropdown', style={"width": "75%", 'margin-top':'8px'}),
+
+        ]),
     html.Div(children=[
         dcc.Graph(figure={}, id='morgan_taylor_pie_chart', style={'width': '48%', 'display': 'inline-block'}),
         dcc.Graph(figure={}, id='opi_pie_chart', style={'width': '48%', 'margin-left': '4%', 'display': 'inline-block'}),
