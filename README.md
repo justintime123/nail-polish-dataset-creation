@@ -1,8 +1,8 @@
 # Nail Polish Dataset Creation 💅
 
-## Disclaimer: Only to be used for educational / demonstrational purposes
-
 ## Project Overview
+
+**Disclaimer**: Only to be used for educational / demonstrational purposes.
 
 **Goal:** Collect and standardize data on nail polish between different companies to be compared. <br>
 
