@@ -39,7 +39,11 @@ Link | link to the product page
 
 
 ## Technologies and Libraries
-- Python: Selenium, BeautifulSoup, Pandas 
+- Python:
+  - Selenium
+  - BeautifulSoup
+  - Pandas
+  - Dash 
 
 
 ## Code structure (TODO: add diagram to show flow)
