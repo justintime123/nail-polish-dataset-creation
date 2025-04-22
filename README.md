@@ -38,6 +38,10 @@ Link | link to the product page
 ## Data Exploration via Dash App
 
 
+https://github.com/user-attachments/assets/6b4d1845-a3ed-4de8-9f49-3a340a7f308e
+
+
+
 ## Technologies and Libraries
 - Python:
   - Selenium
