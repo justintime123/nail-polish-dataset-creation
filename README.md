@@ -19,6 +19,11 @@
      - [How to read robots.txt files](https://www.zenrows.com/blog/robots-txt-web-scraping#most-common-robots-txt-rules) 
   -  Don't overload servers.
   -  Requests shouldn't harm the function/operation of the website.
+ 
+### Transformation
+:star: Wrote Regex to parse fields from alt-text of Morgan Taylor products. <br><br>
+:star: Used K-means algorithm to determine dominant colors in product images. <br>
+- This was used to standardize color families between different brands.
    
 ### Standardization
 I formatted data into the following format:
@@ -29,13 +34,10 @@ Brand | Nail polish brand (OPI or Morgan Taylor)
 Product Name | Name of the polish 
 Product Type | Nail Lacquer, Vegan
 Color family | Primary/base color 
-Color shade | More detailed description of color (e.g., light blue) (optional)
 Primary finish | Creme, metallic, glitter, shimmer, pearl, etc. Covers any effects (like jelly).
-Secondary finish | Extra finish, if there's another on top
-Original description | Optional field (if applicable) to show where color_shade, primary_finish, and secondary_finish were derived from
 Link | link to the product page
 
-## Data Exploration via Dash App
+## Data Visualization via Dash App
 
 
 https://github.com/user-attachments/assets/6b4d1845-a3ed-4de8-9f49-3a340a7f308e
@@ -50,12 +52,9 @@ https://github.com/user-attachments/assets/6b4d1845-a3ed-4de8-9f49-3a340a7f308e
   - Dash 
 
 
-## Code structure (TODO: add diagram to show flow)
+## Code structure 
 - webscrapers
   - get raw data from websites and dump into json files
 - data transformation
   - transform data to conform to standardized df_format file
-- data standardization
-  - In Progress
-- Database storage (TBD)
-  - Potentially use SQLLite
+- data exploration
