@@ -39,6 +39,8 @@ Link | link to the product page
 
 ## Data Visualization via Dash App
 
+- In below pie charts, the % represents % of total collection
+- Interestingly, OPI is a much larger company than Morgan Taylor and has a larger collection, yet the two companies have similar percentages of red, pink and orange polishes in their collection.
 
 https://github.com/user-attachments/assets/6b4d1845-a3ed-4de8-9f49-3a340a7f308e
 
